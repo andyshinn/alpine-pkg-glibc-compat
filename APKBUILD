@@ -11,7 +11,7 @@ url="https://github.com/sgerrand/alpine-pkg-glibc"
 license="LGPL"
 source="https://github.com/sgerrand/docker-glibc-builder/releases/download/$pkgver-$_pkgrel/glibc-bin-$pkgver-$_pkgrel-x86_64.tar.gz
 ld.so.conf"
-subpackages="$pkgname-bin $pkgname-dev $pkgname-i18n"
+subpackages="$pkgname-bin $pkgname-utils $pkgname-dev $pkgname-i18n"
 triggers="$pkgname-bin.trigger=/lib:/usr/lib:/usr/glibc-compat/lib"
 
 package() {
@@ -35,12 +35,26 @@ package() {
 }
 
 bin() {
+  pkgdesc="executable programs that come with glibc, installed to /usr/glibc-compat/"
   depends="$pkgname libgcc"
   depends="$depends bash" # shebang for ldd, sotrus, tzselect, xtrace
   depends="$depends perl" # shebang for mtrace
   mkdir -p "$subpkgdir"/usr/glibc-compat
   cp -a "$srcdir"/usr/glibc-compat/bin "$subpkgdir"/usr/glibc-compat
   cp -a "$srcdir"/usr/glibc-compat/sbin "$subpkgdir"/usr/glibc-compat
+}
+
+utils() {
+  pkgdesc="a replacement for musl-utils that uses the glibc versions of those utilities"
+  depends="$pkgname-bin"
+  provides="musl-utils"
+  conflicts="musl-utils"
+  mkdir -p "$subpkgdir"/usr/bin "$subpkgdir"/usr/sbin
+  ln -s /usr/glibc-compat/bin/getconf   "$subpkgdir"/usr/bin
+  ln -s /usr/glibc-compat/bin/getent    "$subpkgdir"/usr/bin
+  ln -s /usr/glibc-compat/bin/iconv     "$subpkgdir"/usr/bin
+  ln -s /usr/glibc-compat/bin/ldd       "$subpkgdir"/usr/bin
+  ln -s /usr/glibc-compat/sbin/ldconfig "$subpkgdir"/usr/sbin
 }
 
 i18n() {
