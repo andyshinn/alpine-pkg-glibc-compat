@@ -5,6 +5,7 @@ pkgver="2.35"
 _pkgrel="0"
 pkgrel="1"
 pkgdesc="GNU C Library compatibility layer"
+options="lib64"
 arch="x86_64"
 url="https://github.com/sgerrand/alpine-pkg-glibc"
 license="LGPL"
@@ -14,7 +15,9 @@ subpackages="$pkgname-bin $pkgname-dev $pkgname-i18n"
 triggers="$pkgname-bin.trigger=/lib:/usr/lib:/usr/glibc-compat/lib"
 
 package() {
-  mkdir -p "$pkgdir/lib" "$pkgdir/usr/glibc-compat/lib/locale"  "$pkgdir"/usr/glibc-compat/lib64 "$pkgdir"/etc
+  provides="libc6-compat"
+  conflicts="libc6-compat"
+  mkdir -p "$pkgdir/lib" "$pkgdir/lib64" "$pkgdir/usr/glibc-compat/lib/locale"  "$pkgdir"/usr/glibc-compat/lib64 "$pkgdir"/etc
   cp -a "$srcdir"/usr "$pkgdir"
   cp "$srcdir"/ld.so.conf "$pkgdir"/usr/glibc-compat/etc/ld.so.conf
   rm "$pkgdir"/usr/glibc-compat/etc/rpc
@@ -26,12 +29,13 @@ package() {
   rm -rf "$pkgdir"/usr/glibc-compat/share
   rm -rf "$pkgdir"/usr/glibc-compat/var
   ln -s /usr/glibc-compat/lib/ld-linux-x86-64.so.2 ${pkgdir}/lib/ld-linux-x86-64.so.2
+  ln -s /usr/glibc-compat/lib/ld-linux-x86-64.so.2 ${pkgdir}/lib64/ld-linux-x86-64.so.2
   ln -s /usr/glibc-compat/lib/ld-linux-x86-64.so.2 ${pkgdir}/usr/glibc-compat/lib64/ld-linux-x86-64.so.2
   ln -s /usr/glibc-compat/etc/ld.so.cache ${pkgdir}/etc/ld.so.cache
 }
 
 bin() {
-  depends="$pkgname bash libc6-compat libgcc"
+  depends="$pkgname bash libgcc"
   mkdir -p "$subpkgdir"/usr/glibc-compat
   cp -a "$srcdir"/usr/glibc-compat/bin "$subpkgdir"/usr/glibc-compat
   cp -a "$srcdir"/usr/glibc-compat/sbin "$subpkgdir"/usr/glibc-compat
