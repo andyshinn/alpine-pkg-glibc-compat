@@ -35,7 +35,9 @@ package() {
 }
 
 bin() {
-  depends="$pkgname bash libgcc"
+  depends="$pkgname libgcc"
+  depends="$depends bash" # shebang for ldd, sotrus, tzselect, xtrace
+  depends="$depends perl" # shebang for mtrace
   mkdir -p "$subpkgdir"/usr/glibc-compat
   cp -a "$srcdir"/usr/glibc-compat/bin "$subpkgdir"/usr/glibc-compat
   cp -a "$srcdir"/usr/glibc-compat/sbin "$subpkgdir"/usr/glibc-compat
