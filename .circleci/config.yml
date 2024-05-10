@@ -73,6 +73,10 @@ orbs:
             type: string
             default: 'sgerrand.rsa'
             description: Name of private key file used for signing packages.
+          signing-public-key-path:
+            type: string
+            default: '/packages/sgerrand.rsa.pub'
+            description: Path of public key file used for signing packages.
           tag:
             type: string
             default: '3.19'
@@ -93,10 +97,12 @@ orbs:
           - run:
               name: Build and sign Alpine Linux packages
               command: >
-                docker run --env RSA_PRIVATE_KEY --env RSA_PRIVATE_KEY_NAME \
+                docker run \
+                  --env RSA_PRIVATE_KEY --env RSA_PRIVATE_KEY_NAME --env PACKAGER_PUBKEY \
                   --volumes-from input --volumes-from output \
                     sgerrand/alpine-abuild:<< parameters.tag >>
               environment:
+                PACKAGER_PUBKEY: << parameters.signing-public-key-path >>
                 RSA_PRIVATE_KEY: << parameters.signing-private-key >>
                 RSA_PRIVATE_KEY_NAME: << parameters.signing-private-key-name >>
       extract-packages:
