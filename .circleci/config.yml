@@ -75,7 +75,7 @@ orbs:
             description: Path of public key file used for signing packages.
           tag:
             type: string
-            default: '3.18'
+            default: '3.19'
             description: Tag for abuild Docker image.
         steps:
           - run:
