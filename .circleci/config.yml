@@ -91,7 +91,7 @@ orbs:
           This command extracts built packages
         steps:
           - validate-docker-containers:
-            container-name: output
+              container-name: output
           - run:
               name: Extract packages from Docker container
               command: |
