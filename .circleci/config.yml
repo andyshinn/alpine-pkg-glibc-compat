@@ -179,13 +179,13 @@ orbs:
         steps:
           - checkout
           - setup_remote_docker
-          - test-orb/download-public-key
-          - test-orb/create-volume-containers
-          - test-orb/copy-build-files
-          - test-orb/build-packages:
+          - download-public-key
+          - create-volume-containers
+          - copy-build-files
+          - build-packages:
               signing-private-key: << parameters.signing-private-key >>
-          - test-orb/extract-packages
-          - test-orb/destroy-volume-containers
+          - extract-packages
+          - destroy-volume-containers
 
 workflows:
   main:
