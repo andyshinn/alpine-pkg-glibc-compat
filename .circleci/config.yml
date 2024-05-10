@@ -98,13 +98,12 @@ orbs:
               name: Build and sign Alpine Linux packages
               command: >
                 docker run \
-                  --env RSA_PRIVATE_KEY --env RSA_PRIVATE_KEY_NAME --env PACKAGER_PUBKEY \
+                  --env RSA_PRIVATE_KEY --env RSA_PRIVATE_KEY_NAME='<< parameters.signing-private-key-name >>' \
+                  --env PACKAGER_PUBKEY='<< parameters.signing-public-key-path >>' \
                   --volumes-from input --volumes-from output \
                     sgerrand/alpine-abuild:<< parameters.tag >>
               environment:
-                PACKAGER_PUBKEY: << parameters.signing-public-key-path >>
                 RSA_PRIVATE_KEY: << parameters.signing-private-key >>
-                RSA_PRIVATE_KEY_NAME: << parameters.signing-private-key-name >>
       extract-packages:
         description: >
           This command extracts built packages
