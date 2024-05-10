@@ -150,7 +150,7 @@ orbs:
         steps:
           - run:
               name: Check that required << parameters.container-name >> Docker container exists
-              command: docker ps --filter='status=<< parameters.status >> | grep -q << parameters.container-name >>
+              command: docker ps --filter='status=<< parameters.status >>' | grep -q << parameters.container-name >>
 
     executors:
       default:
