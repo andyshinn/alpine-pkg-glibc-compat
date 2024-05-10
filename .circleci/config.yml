@@ -1,134 +1,194 @@
-version: 2
-references:
-  basic-job: &basic-job
-    working_directory: ~/alpine-pkg-glibc
-  upload-job: &upload-job
-    <<: *basic-job
-    docker:
-      - image: golang:alpine
-  upload-attach-workspace: &upload-attach-workspace
-    attach_workspace:
-      at: .
-  upload-packages: &upload-packages
-    run:
-      command: apk add --no-cache git openssh-client
-      name: Install dependencies of go install
-  upload-ghr: &upload-ghr
-    run:
-      command: go install github.com/tcnksm/ghr@latest
-      name: Install ghr executable
-jobs:
-  build:
-    <<: *basic-job
-    docker:
-      - image: docker:git
-    steps:
-      - checkout
-      - setup_remote_docker
-      - run:
-          name: Download public signing key
-          command: |
-            wget https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub
-            echo "823b54589c93b02497f1ba4dc622eaef9c813e6b0f0ebbb2f771e32adf9f4ef2  sgerrand.rsa.pub" | sha256sum -c -
-      - run:
-          name: Create Docker volumes
-          command: |
-            docker create --name input --volume /home/builder/package alpine:3.15 /bin/true
-            docker cp . input:/home/builder/package/
-            docker create --name output --volume /packages alpine:3.15 /bin/true
-            docker cp sgerrand.rsa.pub output:/packages/
-      - run:
-          name: Build packages
-          command: |
-            docker run \
-              --env RSA_PRIVATE_KEY="$RSA_PRIVATE_KEY" \
-              --env RSA_PRIVATE_KEY_NAME="sgerrand.rsa" \
-              --volumes-from input \
-              --volumes-from output \
-              sgerrand/alpine-abuild:3.15
-      - run:
-          name: Test package installation
-          command: |
-            docker run \
-              --volumes-from output \
-              alpine:3.15 sh -c "cp /packages/sgerrand.rsa.pub /etc/apk/keys/ && apk -U add --no-progress --upgrade /packages/builder/x86_64/*.apk"
-      - run:
-          name: Extract packages
-          command: |
-            mkdir -p packages
-            docker cp output:/packages/builder packages/
-      - run:
-          name: Remove Docker volumes
-          command: |
-            docker rm input
-            docker rm output
-          when: always
-      - persist_to_workspace:
-          root: .
-          paths: packages
-      - store_artifacts:
-          destination: pkgs
-          path: packages
-  doctests:
-    <<: *basic-job
-    docker:
-      - image: alpine:latest
-    steps:
-      - run:
-          name: Install required packages
-          command: apk add --no-cache git openssh-client
-      - checkout
-      - run:
-          name: Parse and run installation steps
-          command: |
-            while read line
-            do  
-              echo "$line" | sed -e '/^[#:]/D' -e '/^$/D' -e '/^apk/p' -e '/^wget/p' -e '/^[A-z]/D' | sh -ex 
-            done < README.md
-  upload-master:
-    <<: *upload-job
-    steps:
-      - *upload-attach-workspace
-      - *upload-packages
-      - *upload-ghr
-      - deploy:
-          name: Upload to GitHub release
-          command: |
-            ghr -r $CIRCLE_PROJECT_REPONAME -u $CIRCLE_PROJECT_USERNAME --prerelease --delete unreleased packages
-            ghr -r $CIRCLE_PROJECT_REPONAME -u $CIRCLE_PROJECT_USERNAME --prerelease unreleased packages/builder/x86_64
-  upload-tag:
-    <<: *upload-job
-    steps:
-      - *upload-attach-workspace
-      - *upload-packages
-      - *upload-ghr
-      - deploy:
-          name: Upload to GitHub release
-          command: |
-            ghr -r $CIRCLE_PROJECT_REPONAME -u $CIRCLE_PROJECT_USERNAME $CIRCLE_TAG packages
-            ghr -r $CIRCLE_PROJECT_REPONAME -u $CIRCLE_PROJECT_USERNAME $CIRCLE_TAG packages/builder/x86_64
-workflows:
-  version: 2
-  test-then-upload-artefacts:
+version: 2.1
+
+orbs:
+  test-orb:
+    commands:
+      destroy-volume-containers:
+        description: >
+          This command removes existing Docker containers
+        parameters:
+          always:
+            type: boolean
+            default: true
+        steps:
+          - remove-docker-containers:
+              always: << parameters.always >>
+              container-name: input
+          - remove-docker-containers:
+              always: << parameters.always >>
+              container-name: output
+      download-public-key:
+        description: >
+          This command downloads the public key required to sign an Alpine Linux package
+        steps:
+          - run:
+              name: Download public signing key
+              command: |
+                wget https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub
+                echo "823b54589c93b02497f1ba4dc622eaef9c813e6b0f0ebbb2f771e32adf9f4ef2  sgerrand.rsa.pub" | sha256sum -c -
+      copy-build-files:
+        description: >
+          This command copies the package's build files and public key 
+        parameters:
+          signing-public-key-name:
+            type: string
+            default: 'sgerrand.rsa.pub'
+            description: Name of public key file used for signing packages.
+        steps:
+          - validate-docker-containers:
+              container-name: input
+          - validate-docker-containers:
+              container-name: output
+          - run:
+              name: Copy build files into Docker container
+              command: docker cp . input:/home/builder/package/
+          - run:
+              name: Copy public key into Docker container
+              command: docker cp << parameters.signing-public-key-name >> output:/packages/<< parameters.signing-public-key-name >>
+      create-volume-containers:
+        description: >
+          This command creates Docker containers for volume mounting
+        parameters:
+          tag:
+            type: string
+            default: "latest"
+            description: Docker image tag for the Alpine Linux image
+        steps:
+          - run:
+              name: Create Docker container for build files
+              command: docker create --name input --volume /home/builder/package alpine:<< parameters.tag >> /bin/true
+          - run:
+              name: Create Docker container for outputting packages
+              command: docker create --name output --volume /packages alpine:<< parameters.tag >> /bin/true
+      build-packages:
+        description: >
+          This command builds any packages described in the build script.
+          Requires signing private key.
+        parameters:
+          signing-private-key:
+            type: string
+            default: ''
+            description: Private key used for signing packages. Format must comply with that described in https://wiki.alpinelinux.org/wiki/Abuild_and_Helpers#abuild-keygen
+          signing-private-key-name:
+            type: string
+            default: 'sgerrand.rsa'
+            description: Name of private key file used for signing packages.
+          tag:
+            type: string
+            default: '3.19'
+            description: Tag for abuild Docker image.
+        steps:
+          - unless:
+              condition: << parameters.signing-private-key >>
+              steps:
+                - run:
+                    name: No value set for parameters.signing-private-key, exit
+                    command: exit 1
+          - unless:
+              condition: << parameters.signing-private-key-name >>
+              steps:
+                - run:
+                    name: No value set for parameters.signing-private-key-name, exit
+                    command: exit 1
+          - run:
+              name: Build and sign Alpine Linux packages
+              command: >
+                docker run --env RSA_PRIVATE_KEY --env RSA_PRIVATE_KEY_NAME \
+                  --volumes-from input --volumes-from output \
+                    sgerrand/alpine-abuild:<< parameters.tag >>
+              environment:
+                RSA_PRIVATE_KEY: << parameters.signing-private-key >>
+                RSA_PRIVATE_KEY_NAME: << parameters.signing-private-key-name >>
+      extract-packages:
+        description: >
+          This command extracts built packages
+        steps:
+          - validate-docker-containers:
+            container-name: output
+          - run:
+              name: Extract packages from Docker container
+              command: |
+                mkdir -p packages
+                docker cp output:/packages/builder packages/
+      remove-docker-containers:
+        description: >
+          This command removes an existing Docker container by name
+        parameters:
+          always:
+            type: boolean
+            default: true
+          container-name:
+            type: string
+            default: ''
+            description: Name of the Docker container to remove
+        steps:
+          - when:
+              condition: << parameters.always >>
+              steps:
+                - run:
+                    name: Remove << parameters.container-name >> Docker container
+                    command: docker rm << parameters.container-name >>
+                    when: always
+          - unless:
+              condition: << parameters.always >>
+              steps:
+                - run:
+                    name: Remove << parameters.container-name >> Docker container
+                    command: docker rm << parameters.container-name >>
+      validate-docker-containers:
+        description: >
+          This command validates that a Docker container exists, based on certain criteria
+        parameters:
+          status:
+            type: string
+            default: 'created'
+            description: Status of the Docker container to filter on
+          container-name:
+            type: string
+            default: ''
+            description: Name of the Docker container being searched for
+        steps:
+          - run:
+              name: Check that required << parameters.container-name >> Docker container exists
+              command: docker ps --filter='status=<< parameters.status >> | grep -q << parameters.container-name >>
+
+    executors:
+      default:
+        description: >
+          This is an executor using Docker inside Docker.
+        docker:
+          - image: 'cimg/base:<<parameters.tag>>'
+        parameters:
+          tag:
+            default: current
+            description: >
+              Pick a specific `docker` image variant:
+              https://hub.docker.com/r/cimg/base/tags
+            type: string
+
     jobs:
-      - build:
-          filters:
-            tags:
-              only: /.*/
-      - doctests
-      - upload-master:
-          filters:
-            branches:
-              only: master
-            tags:
-              ignore: /.*/
-          requires:
-            - build
-      - upload-tag:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /[0-9]+(\.[0-9]+){1,2}(\-r\d+)?$/
-          requires:
-            - build
+      build:
+        executor: default
+
+        parameters:
+          signing-private-key:
+            type: string
+            default: ''
+            description: Private key used for signing packages. Format must comply with that described in https://wiki.alpinelinux.org/wiki/Abuild_and_Helpers#abuild-keygen
+
+        steps:
+          - checkout
+          - setup_remote_docker
+          - test-orb/download-public-key
+          - test-orb/create-volume-containers
+          - test-orb/copy-build-files
+          - test-orb/build-packages:
+              signing-private-key: << parameters.signing-private-key >>
+          - test-orb/extract-packages
+          - test-orb/destroy-volume-containers
+
+workflows:
+  main:
+    jobs:
+      - test-orb/build:
+          signing-private-key: RSA_PRIVATE_KEY
