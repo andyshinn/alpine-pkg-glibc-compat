@@ -63,12 +63,8 @@ orbs:
       build-packages:
         description: >
           This command builds any packages described in the build script.
-          Requires signing private key.
+          Requires private and public keys for signing packages.
         parameters:
-          signing-private-key:
-            type: string
-            default: ''
-            description: Private key used for signing packages. Format must comply with that described in https://wiki.alpinelinux.org/wiki/Abuild_and_Helpers#abuild-keygen
           signing-private-key-name:
             type: string
             default: 'sgerrand.rsa'
@@ -82,18 +78,6 @@ orbs:
             default: '3.15'
             description: Tag for abuild Docker image.
         steps:
-          - unless:
-              condition: << parameters.signing-private-key >>
-              steps:
-                - run:
-                    name: No value set for parameters.signing-private-key, exit
-                    command: exit 1
-          - unless:
-              condition: << parameters.signing-private-key-name >>
-              steps:
-                - run:
-                    name: No value set for parameters.signing-private-key-name, exit
-                    command: exit 1
           - run:
               name: Build and sign Alpine Linux packages
               command: >
@@ -102,8 +86,6 @@ orbs:
                   --env PACKAGER_PUBKEY='<< parameters.signing-public-key-path >>' \
                   --volumes-from input --volumes-from output \
                     sgerrand/alpine-abuild:<< parameters.tag >>
-              environment:
-                RSA_PRIVATE_KEY: << parameters.signing-private-key >>
       extract-packages:
         description: >
           This command extracts built packages
@@ -175,25 +157,17 @@ orbs:
       build:
         executor: default
 
-        parameters:
-          signing-private-key:
-            type: string
-            default: ''
-            description: Private key used for signing packages. Format must comply with that described in https://wiki.alpinelinux.org/wiki/Abuild_and_Helpers#abuild-keygen
-
         steps:
           - checkout
           - setup_remote_docker
           - download-public-key
           - create-volume-containers
           - copy-build-files
-          - build-packages:
-              signing-private-key: << parameters.signing-private-key >>
+          - build-packages
           - extract-packages
           - destroy-volume-containers
 
 workflows:
   main:
     jobs:
-      - test-orb/build:
-          signing-private-key: RSA_PRIVATE_KEY
+      - test-orb/build
