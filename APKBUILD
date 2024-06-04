@@ -15,7 +15,7 @@ subpackages="$pkgname-bin $pkgname-utils $pkgname-dev $pkgname-i18n"
 triggers="$pkgname-bin.trigger=/lib:/usr/lib:/usr/glibc-compat/lib"
 
 package() {
-  provides="libc6-compat"
+  provides="gnu-c-lib"
   conflicts="libc6-compat"
   mkdir -p "$pkgdir/lib" "$pkgdir/lib64" "$pkgdir/usr/glibc-compat/lib/locale"  "$pkgdir"/usr/glibc-compat/lib64 "$pkgdir"/etc
   cp -a "$srcdir"/usr "$pkgdir"
@@ -39,6 +39,7 @@ bin() {
   depends="$pkgname libgcc"
   depends="$depends bash" # shebang for ldd, sotrus, tzselect, xtrace
   depends="$depends perl" # shebang for mtrace
+  depends="$depends !libc6-compat" # conflicts with this package
   mkdir -p "$subpkgdir"/usr/glibc-compat
   cp -a "$srcdir"/usr/glibc-compat/bin "$subpkgdir"/usr/glibc-compat
   cp -a "$srcdir"/usr/glibc-compat/sbin "$subpkgdir"/usr/glibc-compat
