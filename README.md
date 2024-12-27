@@ -8,6 +8,10 @@ This is the [GNU C Library](https://gnu.org/software/libc/) as a Alpine Linux pa
 
 See the [releases page](https://github.com/sgerrand/alpine-pkg-glibc/releases) for the latest download links. If you are using tools like `localedef` you will need the `glibc-bin` and `glibc-i18n` packages in addition to the `glibc` package.
 
+## Build
+
+    docker buildx build --platform linux/arm64,linux/amd64 --build-arg GLIBC_VERSION=2.39 -t alpine-glibc:2.39 .
+
 ## Installing
 
 The current installation method for these packages is to pull them in using `wget` or `curl` and install the local file with `apk`:

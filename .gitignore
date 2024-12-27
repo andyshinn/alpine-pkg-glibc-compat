@@ -1,5 +1,6 @@
 *.rsa
 *.pkg*
+*.gz
 src
 pkg
 packages
